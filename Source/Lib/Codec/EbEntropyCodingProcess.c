@@ -363,6 +363,29 @@ void* EntropyCodingKernel(void *inputPtr)
         pictureControlSetPtr   = (PictureControlSet_t*) encDecResultsPtr->pictureControlSetWrapperPtr->objectPtr;
         sequenceControlSetPtr  = (SequenceControlSet_t*) pictureControlSetPtr->sequenceControlSetWrapperPtr->objectPtr;
         tileIdx                = encDecResultsPtr->tileIndex;
+
+#ifdef LATENCY_TRACK_ENABLED
+        if (pictureControlSetPtr->pictureNumber < PIC_TRACKING_COUNT) {
+            EbBlockOnMutex(entropyCodingStartMutex);
+
+            if (entropyCodingStarted[pictureControlSetPtr->pictureNumber] == EB_FALSE) {
+                EB_U64 currentS, currentUs;
+
+                entropyCodingStarted[pictureControlSetPtr->pictureNumber] = EB_TRUE;
+                EbReleaseMutex(entropyCodingStartMutex);
+
+                EbFinishTime(&currentS, &currentUs);
+                EbComputeElapsedTime(startS, startUs, currentS, currentUs,
+                    &picStartTime[pictureControlSetPtr->pictureNumber][KERNEL_ENTROPY_CODING]);
+#ifdef LATENCY_TRACK_DETAILS
+                fprintf(stderr, "KERNEL_ENTROPY_CODING %ld started\n", pictureControlSetPtr->pictureNumber);
+#endif
+            } else {
+                EbReleaseMutex(entropyCodingStartMutex);
+            }
+        }
+#endif
+
         tileRowIdx             = tileIdx / pictureControlSetPtr->ParentPcsPtr->tileColumnCount;
         tileColIdx             = tileIdx % pictureControlSetPtr->ParentPcsPtr->tileColumnCount;
         lastLcuFlagInSlice     = EB_FALSE;
@@ -522,6 +545,23 @@ void* EntropyCodingKernel(void *inputPtr)
                                     EbReleaseObject(pictureControlSetPtr->refPicPtrArray[1]);
                                 }
                             }
+
+#ifdef LATENCY_TRACK_ENABLED
+                            if (pictureControlSetPtr->pictureNumber < PIC_TRACKING_COUNT) {
+                                EB_U64 currentS, currentUs;
+
+                                EbBlockOnMutex(entropyCodingFinishMutex);
+
+                                EbFinishTime(&currentS, &currentUs);
+                                EbComputeElapsedTime(startS, startUs, currentS, currentUs,
+                                    &picFinishTime[pictureControlSetPtr->pictureNumber][KERNEL_ENTROPY_CODING]);
+
+                                EbReleaseMutex(entropyCodingFinishMutex);
+#ifdef LATENCY_TRACK_DETAILS
+                                fprintf(stderr, "KERNEL_ENTROPY_CODING %ld finished\n", pictureControlSetPtr->pictureNumber);
+#endif
+                            }
+#endif
 
                             // Get Empty Entropy Coding Results
                             EbGetEmptyObject(

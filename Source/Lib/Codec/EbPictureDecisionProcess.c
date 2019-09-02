@@ -631,6 +631,18 @@ void* PictureDecisionKernel(void *inputPtr)
         sequenceControlSetPtr   = (SequenceControlSet_t*)       pictureControlSetPtr->sequenceControlSetWrapperPtr->objectPtr;
         encodeContextPtr        = (EncodeContext_t*)            sequenceControlSetPtr->encodeContextPtr;
 
+#ifdef LATENCY_TRACK_ENABLED
+        if (pictureControlSetPtr->pictureNumber < PIC_TRACKING_COUNT) {
+            EB_U64 currentS, currentUs;
+            EbFinishTime(&currentS, &currentUs);
+            EbComputeElapsedTime(startS, startUs, currentS, currentUs,
+                &picStartTime[pictureControlSetPtr->pictureNumber][KERNEL_PICTURE_DECISION]);
+#ifdef LATENCY_TRACK_DETAILS
+            fprintf(stderr, "KERNEL_PICTURE_DECISION %ld started\n", pictureControlSetPtr->pictureNumber);
+#endif
+        }
+#endif
+
 #if DEADLOCK_DEBUG
         SVT_LOG("POC %lld PD IN \n", pictureControlSetPtr->pictureNumber);
 #endif
@@ -1307,10 +1319,22 @@ void* PictureDecisionKernel(void *inputPtr)
                         pictureControlSetPtr->meSegmentsRowCount       =  (EB_U8)(sequenceControlSetPtr->meSegmentRowCountArray[pictureControlSetPtr->temporalLayerIndex]);
                         pictureControlSetPtr->meSegmentsTotalCount     =  (EB_U16)(pictureControlSetPtr->meSegmentsColumnCount  * pictureControlSetPtr->meSegmentsRowCount);
                         pictureControlSetPtr->meSegmentsCompletionMask = 0;
-
                         // Post the results to the ME processes                  
                         {
                             EB_U32 segmentIndex;
+
+#ifdef LATENCY_TRACK_ENABLED
+                            if (((PictureParentControlSet_t *)encodeContextPtr->preAssignmentBuffer[pictureIndex]->objectPtr)->pictureNumber < PIC_TRACKING_COUNT) {
+                                EB_U64 currentS, currentUs;
+                                EbFinishTime(&currentS, &currentUs);
+                                EbComputeElapsedTime(startS, startUs, currentS, currentUs,
+                                    &picFinishTime[((PictureParentControlSet_t *)encodeContextPtr->preAssignmentBuffer[pictureIndex]->objectPtr)->pictureNumber][KERNEL_PICTURE_DECISION]);
+#ifdef LATENCY_TRACK_DETAILS
+                                fprintf(stderr, "KERNEL_PICTURE_DECISION %ld finished\n",
+                                    ((PictureParentControlSet_t *)encodeContextPtr->preAssignmentBuffer[pictureIndex]->objectPtr)->pictureNumber);
+#endif
+                            }
+#endif
 
                             for(segmentIndex=0; segmentIndex < pictureControlSetPtr->meSegmentsTotalCount; ++segmentIndex)
                             {

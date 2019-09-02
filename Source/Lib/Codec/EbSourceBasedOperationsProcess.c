@@ -1419,6 +1419,19 @@ void* SourceBasedOperationsKernel(void *inputPtr)
         pictureControlSetPtr = (PictureParentControlSet_t*)inputResultsPtr->pictureControlSetWrapperPtr->objectPtr;
 		sequenceControlSetPtr = (SequenceControlSet_t*)pictureControlSetPtr->sequenceControlSetWrapperPtr->objectPtr;
 
+#ifdef LATENCY_TRACK_ENABLED
+        if (pictureControlSetPtr->pictureNumber < PIC_TRACKING_COUNT) {
+            EB_U64 currentS, currentUs;
+            EbFinishTime(&currentS, &currentUs);
+            EbComputeElapsedTime(startS, startUs, currentS, currentUs,
+                &picStartTime[pictureControlSetPtr->pictureNumber][KERNEL_SOURCE_BASED_OPERATION]);
+#ifdef LATENCY_TRACK_DETAILS
+            fprintf(stderr, "KERNEL_SOURCE_BASED_OPERATION %ld started\n", pictureControlSetPtr->pictureNumber);
+#endif
+        }
+#endif
+
+
 #if DEADLOCK_DEBUG
         SVT_LOG("POC %lld SRC IN \n", pictureControlSetPtr->pictureNumber);
 #endif
@@ -1670,6 +1683,18 @@ void* SourceBasedOperationsKernel(void *inputPtr)
 
 #if DEADLOCK_DEBUG
         SVT_LOG("POC %lld SRC OUT \n", pictureControlSetPtr->pictureNumber);
+#endif
+
+#ifdef LATENCY_TRACK_ENABLED
+        if (pictureControlSetPtr->pictureNumber < PIC_TRACKING_COUNT) {
+            EB_U64 currentS, currentUs;
+            EbFinishTime(&currentS, &currentUs);
+            EbComputeElapsedTime(startS, startUs, currentS, currentUs,
+                &picFinishTime[pictureControlSetPtr->pictureNumber][KERNEL_SOURCE_BASED_OPERATION]);
+#ifdef LATENCY_TRACK_DETAILS
+            fprintf(stderr, "KERNEL_SOURCE_BASED_OPERATION %ld finished\n", pictureControlSetPtr->pictureNumber);
+#endif
+        }
 #endif
 
         // Get Empty Results Object

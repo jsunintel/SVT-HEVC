@@ -438,3 +438,19 @@ void EbComputeOverallElapsedTimeMs(EB_U64 Startseconds, EB_U64 Startuseconds, EB
     //SVT_LOG("\nElapsed time: %3.3ld seconds\n", mtime/1000);
 #endif
 }
+
+void EbComputeElapsedTime(EB_U64 Startseconds, EB_U64 Startuseconds, EB_U64 Finishseconds, EB_U64 Finishuseconds, EB_U64 *duration)
+{
+#ifdef _WIN32
+    *duration = Finishseconds - Startseconds;
+    //SVT_LOG("\nElapsed time: %ld ms\n", *duration);
+    (void)(Startuseconds);
+    (void)(Finishuseconds);
+#else
+    EB_U64 seconds, useconds;
+    seconds = Finishseconds - Startseconds;
+    useconds = Finishuseconds - Startuseconds;
+    *duration = (seconds * 1000 * 1000 + useconds + 500) / 1000;
+    //SVT_LOG("\nElapsed time: %ld ms\n", *duration);
+#endif
+}

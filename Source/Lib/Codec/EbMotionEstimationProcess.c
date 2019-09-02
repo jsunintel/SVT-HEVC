@@ -665,11 +665,35 @@ void* MotionEstimationKernel(void *inputPtr)
 		sixteenthDecimatedPicturePtr = (EbPictureBufferDesc_t*)paReferenceObject->sixteenthDecimatedPicturePtr;
         inputPaddedPicturePtr = (EbPictureBufferDesc_t*)paReferenceObject->inputPaddedPicturePtr;
 		inputPicturePtr = pictureControlSetPtr->enhancedPicturePtr;
+
 #if DEADLOCK_DEBUG
         SVT_LOG("POC %lld ME IN \n", pictureControlSetPtr->pictureNumber);
 #endif
 		// Segments
 		segmentIndex = inputResultsPtr->segmentIndex;
+
+#ifdef LATENCY_TRACK_ENABLED
+        if (pictureControlSetPtr->pictureNumber < PIC_TRACKING_COUNT) {
+            EbBlockOnMutex(motionEstimationStartMutex);
+
+            if (motionEstimationStarted[pictureControlSetPtr->pictureNumber] == EB_FALSE) {
+                EB_U64 currentS, currentUs;
+
+                motionEstimationStarted[pictureControlSetPtr->pictureNumber] = EB_TRUE;
+                EbReleaseMutex(motionEstimationStartMutex);
+
+                EbFinishTime(&currentS, &currentUs);
+                EbComputeElapsedTime(startS, startUs, currentS, currentUs,
+                    &picStartTime[pictureControlSetPtr->pictureNumber][KERNEL_MOTION_ESTIMATION]);
+#ifdef LATENCY_TRACK_DETAILS
+                fprintf(stderr, "KERNEL_MOTION_ESTIMATION %ld started\n", pictureControlSetPtr->pictureNumber);
+#endif
+            } else {
+                EbReleaseMutex(motionEstimationStartMutex);
+            }
+        }
+#endif
+
 		pictureWidthInLcu = (sequenceControlSetPtr->lumaWidth + sequenceControlSetPtr->lcuSize - 1) / sequenceControlSetPtr->lcuSize;
 		pictureHeightInLcu = (sequenceControlSetPtr->lumaHeight + sequenceControlSetPtr->lcuSize - 1) / sequenceControlSetPtr->lcuSize;
 		SEGMENT_CONVERT_IDX_TO_XY(segmentIndex, xSegmentIndex, ySegmentIndex, pictureControlSetPtr->meSegmentsColumnCount);
@@ -955,20 +979,38 @@ void* MotionEstimationKernel(void *inputPtr)
         SVT_LOG("POC %lld ME OUT \n", pictureControlSetPtr->pictureNumber);
 #endif
         EbReleaseMutex(pictureControlSetPtr->rcDistortionHistogramMutex);
-		// Get Empty Results Object
-		EbGetEmptyObject(
-			contextPtr->motionEstimationResultsOutputFifoPtr,
-			&outputResultsWrapperPtr);
 
-		outputResultsPtr = (MotionEstimationResults_t*)outputResultsWrapperPtr->objectPtr;
-		outputResultsPtr->pictureControlSetWrapperPtr = inputResultsPtr->pictureControlSetWrapperPtr;
-		outputResultsPtr->segmentIndex = segmentIndex;
+#ifdef LATENCY_TRACK_ENABLED
+        if (pictureControlSetPtr->pictureNumber < PIC_TRACKING_COUNT) {
+            EB_U64 currentS, currentUs;
 
-		// Release the Input Results
-		EbReleaseObject(inputResultsWrapperPtr);
+            EbBlockOnMutex(motionEstimationFinishMutex);
 
-		// Post the Full Results Object
-		EbPostFullObject(outputResultsWrapperPtr);
-	}
-	return EB_NULL;
+            EbFinishTime(&currentS, &currentUs);
+            EbComputeElapsedTime(startS, startUs, currentS, currentUs,
+                &picFinishTime[pictureControlSetPtr->pictureNumber][KERNEL_MOTION_ESTIMATION]);
+
+            EbReleaseMutex(motionEstimationFinishMutex);
+#ifdef LATENCY_TRACK_DETAILS
+            fprintf(stderr, "KERNEL_MOTION_ESTIMATION %ld finished\n", pictureControlSetPtr->pictureNumber);
+#endif
+        }
+#endif
+
+        // Get Empty Results Object
+        EbGetEmptyObject(
+            contextPtr->motionEstimationResultsOutputFifoPtr,
+            &outputResultsWrapperPtr);
+
+        outputResultsPtr = (MotionEstimationResults_t*)outputResultsWrapperPtr->objectPtr;
+        outputResultsPtr->pictureControlSetWrapperPtr = inputResultsPtr->pictureControlSetWrapperPtr;
+        outputResultsPtr->segmentIndex = segmentIndex;
+
+        // Post the Full Results Object
+        EbPostFullObject(outputResultsWrapperPtr);
+
+        // Release the Input Results
+        EbReleaseObject(inputResultsWrapperPtr);
+    }
+    return EB_NULL;
 }

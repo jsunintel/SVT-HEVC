@@ -920,8 +920,22 @@ void* InitialRateControlKernel(void *inputPtr)
 #if DEADLOCK_DEBUG
         SVT_LOG("POC %lld IRC IN \n", pictureControlSetPtr->pictureNumber);
 #endif
-        pictureControlSetPtr->meSegmentsCompletionMask++;
+
+	pictureControlSetPtr->meSegmentsCompletionMask++;
         if (pictureControlSetPtr->meSegmentsCompletionMask == pictureControlSetPtr->meSegmentsTotalCount) {
+
+#ifdef LATENCY_TRACK_ENABLED
+            if (pictureControlSetPtr->pictureNumber < PIC_TRACKING_COUNT) {
+                EB_U64 currentS, currentUs;
+                EbFinishTime(&currentS, &currentUs);
+                EbComputeElapsedTime(startS, startUs, currentS, currentUs,
+                    &picStartTime[pictureControlSetPtr->pictureNumber][KERNEL_INITIAL_RATE_CONTROL]);
+#ifdef LATENCY_TRACK_DETAILS
+                fprintf(stderr, "KERNEL_INITIAL_RATE_CONTROL %ld started\n", pictureControlSetPtr->pictureNumber);
+#endif
+            }
+#endif
+
 			sequenceControlSetPtr = (SequenceControlSet_t*)pictureControlSetPtr->sequenceControlSetWrapperPtr->objectPtr;
 			encodeContextPtr = (EncodeContext_t*)sequenceControlSetPtr->encodeContextPtr;
 
@@ -1116,6 +1130,19 @@ void* InitialRateControlKernel(void *inputPtr)
 						&outputStreamWrapperPtr);
 
 					pictureControlSetPtr->outputStreamWrapperPtr = outputStreamWrapperPtr;					
+
+#ifdef LATENCY_TRACK_ENABLED
+        if (((PictureParentControlSet_t *)queueEntryPtr->parentPcsWrapperPtr->objectPtr)->pictureNumber < PIC_TRACKING_COUNT) {
+            EB_U64 currentS, currentUs;
+            EbFinishTime(&currentS, &currentUs);
+            EbComputeElapsedTime(startS, startUs, currentS, currentUs,
+                &picFinishTime[((PictureParentControlSet_t *)queueEntryPtr->parentPcsWrapperPtr->objectPtr)->pictureNumber][KERNEL_INITIAL_RATE_CONTROL]);
+#ifdef LATENCY_TRACK_DETAILS
+            fprintf(stderr, "KERNEL_INITIAL_RATE_CONTROL %ld finished\n",
+                ((PictureParentControlSet_t *)queueEntryPtr->parentPcsWrapperPtr->objectPtr)->pictureNumber);
+#endif
+        }
+#endif
 
                     // Get Empty Results Object
 					EbGetEmptyObject(

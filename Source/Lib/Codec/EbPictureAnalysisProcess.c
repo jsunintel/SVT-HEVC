@@ -4245,6 +4245,19 @@ void* PictureAnalysisKernel(void *inputPtr)
 		pictureControlSetPtr = (PictureParentControlSet_t*)inputResultsPtr->pictureControlSetWrapperPtr->objectPtr;
 		sequenceControlSetPtr = (SequenceControlSet_t*)pictureControlSetPtr->sequenceControlSetWrapperPtr->objectPtr;
 		inputPicturePtr = pictureControlSetPtr->enhancedPicturePtr;
+
+#ifdef LATENCY_TRACK_ENABLED
+        if (pictureControlSetPtr->pictureNumber < PIC_TRACKING_COUNT) {
+            EB_U64 currentS, currentUs;
+            EbFinishTime(&currentS, &currentUs);
+            EbComputeElapsedTime(startS, startUs, currentS, currentUs,
+                &picStartTime[pictureControlSetPtr->pictureNumber][KERNEL_PICTURE_ANALYSIS]);
+#ifdef LATENCY_TRACK_DETAILS
+            fprintf(stderr, "KERNEL_PICTURE_ANALYSIS %ld started\n", pictureControlSetPtr->pictureNumber);
+#endif
+        }
+#endif
+
 #if DEADLOCK_DEBUG
         SVT_LOG("POC %lld PA IN \n", pictureControlSetPtr->pictureNumber);
 #endif
@@ -4318,6 +4331,18 @@ void* PictureAnalysisKernel(void *inputPtr)
 			paReferenceObject->yMean[lcuIndex] = pictureControlSetPtr->yMean[lcuIndex][ME_TIER_ZERO_PU_64x64];
 
 		}
+
+#ifdef LATENCY_TRACK_ENABLED
+        if (pictureControlSetPtr->pictureNumber < PIC_TRACKING_COUNT) {
+            EB_U64 currentS, currentUs;
+            EbFinishTime(&currentS, &currentUs);
+            EbComputeElapsedTime(startS, startUs, currentS, currentUs,
+                &picFinishTime[pictureControlSetPtr->pictureNumber][KERNEL_PICTURE_ANALYSIS]);
+#ifdef LATENCY_TRACK_DETAILS
+            fprintf(stderr, "KERNEL_PICTURE_ANALYSIS %ld finished\n", pictureControlSetPtr->pictureNumber);
+#endif
+        }
+#endif
 
 		// Get Empty Results Object
 		EbGetEmptyObject(

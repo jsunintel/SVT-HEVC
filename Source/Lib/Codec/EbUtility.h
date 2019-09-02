@@ -203,6 +203,48 @@ void EbStartTime(EB_U64 *Startseconds, EB_U64 *Startuseconds);
 void EbFinishTime(EB_U64 *Finishseconds, EB_U64 *Finishuseconds);
 void EbComputeOverallElapsedTime(EB_U64 Startseconds, EB_U64 Startuseconds, EB_U64 Finishseconds, EB_U64 Finishuseconds, double *duration);
 void EbComputeOverallElapsedTimeMs(EB_U64 Startseconds, EB_U64 Startuseconds, EB_U64 Finishseconds, EB_U64 Finishuseconds, double *duration);
+void EbComputeElapsedTime(EB_U64 Startseconds, EB_U64 Startuseconds, EB_U64 Finishseconds, EB_U64 Finishuseconds, EB_U64 *duration);
+
+#define LATENCY_TRACK_ENABLED
+
+#ifdef LATENCY_TRACK_ENABLED
+
+typedef enum KERNEL_INDEX {
+    KERNEL_RESOURCE_COORDINATION = 0,
+    KERNEL_PICTURE_ANALYSIS,
+    KERNEL_PICTURE_DECISION,
+    KERNEL_MOTION_ESTIMATION,
+    KERNEL_INITIAL_RATE_CONTROL,
+    KERNEL_SOURCE_BASED_OPERATION,
+    KERNEL_PICTURE_MANAGER,
+    KERNEL_RATE_CONTROL,
+    KERNEL_MODE_DECISION_CONFIGURATION,
+    KERNEL_ENC_DEC,
+    KERNEL_ENTROPY_CODING,
+    KERNEL_PACKETIZATION,
+    KERNEL_TOTAL
+} KERNEL_INDEX;
+
+#define PIC_TRACKING_COUNT 4096
+#define LATENCY_TRACK_DETAILS
+
+EB_U64 startS, startUs;
+
+EB_HANDLE motionEstimationStartMutex, motionEstimationFinishMutex;
+EB_HANDLE encDecStartMutex, encDecFinishMutex;
+EB_HANDLE entropyCodingStartMutex, entropyCodingFinishMutex;
+
+EB_BOOL motionEstimationStarted[PIC_TRACKING_COUNT];
+EB_BOOL encDecStarted[PIC_TRACKING_COUNT];
+EB_BOOL entropyCodingStarted[PIC_TRACKING_COUNT];
+
+EB_U64 picStartTime[PIC_TRACKING_COUNT][KERNEL_TOTAL];
+EB_U64 picFinishTime[PIC_TRACKING_COUNT][KERNEL_TOTAL];
+
+EB_U64 totalPicCount;
+
+#endif
+
 #ifdef __cplusplus
 }
 #endif

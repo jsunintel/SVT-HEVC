@@ -1928,6 +1928,19 @@ void* ModeDecisionConfigurationKernel(void *inputPtr)
 		rateControlResultsPtr = (RateControlResults_t*)rateControlResultsWrapperPtr->objectPtr;
 		pictureControlSetPtr = (PictureControlSet_t*)rateControlResultsPtr->pictureControlSetWrapperPtr->objectPtr;
 		sequenceControlSetPtr = (SequenceControlSet_t*)pictureControlSetPtr->sequenceControlSetWrapperPtr->objectPtr;
+
+#ifdef LATENCY_TRACK_ENABLED
+        if (pictureControlSetPtr->pictureNumber < PIC_TRACKING_COUNT) {
+            EB_U64 currentS, currentUs;
+            EbFinishTime(&currentS, &currentUs);
+            EbComputeElapsedTime(startS, startUs, currentS, currentUs,
+                &picStartTime[pictureControlSetPtr->pictureNumber][KERNEL_MODE_DECISION_CONFIGURATION]);
+#ifdef LATENCY_TRACK_DETAILS
+            fprintf(stderr, "KERNEL_MODE_DECISION_CONFIGURATION %ld started\n", pictureControlSetPtr->pictureNumber);
+#endif
+        }
+#endif
+
 #if DEADLOCK_DEBUG
         SVT_LOG("POC %lld MDC IN \n", pictureControlSetPtr->pictureNumber);
 #endif
@@ -2082,10 +2095,23 @@ void* ModeDecisionConfigurationKernel(void *inputPtr)
 #endif
         // Post the results to the MD processes
 
+#ifdef LATENCY_TRACK_ENABLED
+        if (pictureControlSetPtr->pictureNumber < PIC_TRACKING_COUNT) {
+            EB_U64 currentS, currentUs;
+            EbFinishTime(&currentS, &currentUs);
+            EbComputeElapsedTime(startS, startUs, currentS, currentUs,
+                &picFinishTime[pictureControlSetPtr->pictureNumber][KERNEL_MODE_DECISION_CONFIGURATION]);
+#ifdef LATENCY_TRACK_DETAILS
+            fprintf(stderr, "KERNEL_MODE_DECISION_CONFIGURATION %ld finished\n", pictureControlSetPtr->pictureNumber);
+#endif
+        }
+#endif
+
         //printf("MDC, post POC %d, decoder order %d\n",
         //        pictureControlSetPtr->pictureNumber, pictureControlSetPtr->ParentPcsPtr->decodeOrder);
         for (unsigned tileRowIdx = 0; tileRowIdx < pictureControlSetPtr->ParentPcsPtr->tileRowCount; tileRowIdx++) {
             // TODO: Too many objects may drain the FIFO and downgrade the perf
+
             EbGetEmptyObject(
                     contextPtr->modeDecisionConfigurationOutputFifoPtr,
                     &encDecTasksWrapperPtr);

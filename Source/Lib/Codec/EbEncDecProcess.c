@@ -2694,6 +2694,28 @@ void* EncDecKernel(void *inputPtr)
         enableSaoFlag = (sequenceControlSetPtr->staticConfig.enableSaoFlag) ? EB_TRUE : EB_FALSE;
         tileRowIndex = encDecTasksPtr->tileRowIndex;
 
+#ifdef LATENCY_TRACK_ENABLED
+        if (pictureControlSetPtr->pictureNumber < PIC_TRACKING_COUNT) {
+            EbBlockOnMutex(encDecStartMutex);
+
+           if (encDecStarted[pictureControlSetPtr->pictureNumber] == EB_FALSE) {
+             EB_U64 currentS, currentUs;
+
+             encDecStarted[pictureControlSetPtr->pictureNumber] = EB_TRUE;
+             EbReleaseMutex(encDecStartMutex);
+
+		EbFinishTime(&currentS, &currentUs);
+		EbComputeElapsedTime(startS, startUs, currentS, currentUs,
+		    &picStartTime[pictureControlSetPtr->pictureNumber][KERNEL_ENC_DEC]);
+#ifdef LATENCY_TRACK_DETAILS
+		fprintf(stderr, "KERNEL_ENC_DEC %ld started\n", pictureControlSetPtr->pictureNumber);
+#endif
+           } else {
+               EbReleaseMutex(encDecStartMutex);
+           }
+        }
+#endif
+
         segmentsPtr = pictureControlSetPtr->encDecSegmentCtrl[tileRowIndex];
         (void)tileX;
         (void)tileY;
@@ -3123,6 +3145,24 @@ void* EncDecKernel(void *inputPtr)
         // Send the Entropy Coder incremental updates as each LCU row becomes available
         {
             if (endOfRowFlag == EB_TRUE) {
+
+#ifdef LATENCY_TRACK_ENABLED
+              if (pictureControlSetPtr->pictureNumber < PIC_TRACKING_COUNT) {
+                  EB_U64 currentS, currentUs;
+
+                  EbBlockOnMutex(encDecFinishMutex);
+
+                  EbFinishTime(&currentS, &currentUs);
+                  EbComputeElapsedTime(startS, startUs, currentS, currentUs,
+                      &picFinishTime[pictureControlSetPtr->pictureNumber][KERNEL_ENC_DEC]);
+
+                  EbReleaseMutex(encDecFinishMutex);
+#ifdef LATENCY_TRACK_DETAILS
+                  fprintf(stderr, "KERNEL_ENC_DEC %ld finished\n", pictureControlSetPtr->pictureNumber);
+#endif
+              }
+#endif
+
                 for (unsigned int tileIdx = tileRowIndex * pictureControlSetPtr->ParentPcsPtr->tileColumnCount;
                         tileIdx < (tileRowIndex + 1) * pictureControlSetPtr->ParentPcsPtr->tileColumnCount;
                         tileIdx++) {

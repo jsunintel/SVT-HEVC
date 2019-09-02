@@ -381,7 +381,7 @@ void* ResourceCoordinationKernel(void *inputPtr)
     EB_U32                          chromaFormat = EB_YUV420;
     EB_U32                          subWidthCMinus1 = 1;
     EB_U32                          subHeightCMinus1 = 1;
-    
+
     for(;;) {
 
         // Tie instanceIndex to zero for now...
@@ -395,6 +395,18 @@ void* ResourceCoordinationKernel(void *inputPtr)
         ebInputPtr = (EB_BUFFERHEADERTYPE*) ebInputWrapperPtr->objectPtr;
      
         sequenceControlSetPtr       = contextPtr->sequenceControlSetInstanceArray[instanceIndex]->sequenceControlSetPtr;
+
+#ifdef LATENCY_TRACK_ENABLED
+        if (contextPtr->pictureNumberArray[instanceIndex] < PIC_TRACKING_COUNT) {
+            EB_U64 currentS, currentUs;
+            EbFinishTime(&currentS, &currentUs);
+            EbComputeElapsedTime(startS, startUs, currentS, currentUs,
+                &picStartTime[contextPtr->pictureNumberArray[instanceIndex]][KERNEL_RESOURCE_COORDINATION]);
+#ifdef LATENCY_TRACK_DETAILS
+            fprintf(stderr, "KERNEL_RESOURCE_COORDINATION %ld started\n", contextPtr->pictureNumberArray[instanceIndex]);
+#endif
+        }
+#endif
 
         // Get source video bit depth
         is16BitInput =  (EB_BOOL)(sequenceControlSetPtr->staticConfig.encoderBitDepth > EB_8BIT);
@@ -662,6 +674,19 @@ void* ResourceCoordinationKernel(void *inputPtr)
 		{
 			((PictureParentControlSet_t       *)prevPictureControlSetWrapperPtr->objectPtr)->endOfSequenceFlag = endOfSequenceFlag;
 
+#ifdef LATENCY_TRACK_ENABLED
+            if (((PictureParentControlSet_t *)prevPictureControlSetWrapperPtr->objectPtr)->pictureNumber < PIC_TRACKING_COUNT) {
+                EB_U64 currentS, currentUs;
+                EbFinishTime(&currentS, &currentUs);
+                EbComputeElapsedTime(startS, startUs, currentS, currentUs,
+                    &picFinishTime[((PictureParentControlSet_t *)prevPictureControlSetWrapperPtr->objectPtr)->pictureNumber][KERNEL_RESOURCE_COORDINATION]);
+#ifdef LATENCY_TRACK_DETAILS
+                fprintf(stderr, "KERNEL_RESOURCE_COORDINATION %ld finished\n",
+                    ((PictureParentControlSet_t *)prevPictureControlSetWrapperPtr->objectPtr)->pictureNumber);
+#endif
+            }
+#endif
+
 			EbGetEmptyObject(
 				contextPtr->resourceCoordinationResultsOutputFifoPtr,
 				&outputWrapperPtr);
@@ -673,8 +698,6 @@ void* ResourceCoordinationKernel(void *inputPtr)
 		}
 
 		prevPictureControlSetWrapperPtr = pictureControlSetWrapperPtr;
-
-
 
 #if DEADLOCK_DEBUG
         SVT_LOG("POC %lld RESCOOR OUT \n", pictureControlSetPtr->pictureNumber);

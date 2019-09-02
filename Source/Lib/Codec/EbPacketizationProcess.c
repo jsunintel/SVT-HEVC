@@ -171,7 +171,20 @@ void* PacketizationKernel(void *inputPtr)
         pictureControlSetPtr    = (PictureControlSet_t*)    entropyCodingResultsPtr->pictureControlSetWrapperPtr->objectPtr;
         sequenceControlSetPtr   = (SequenceControlSet_t*)   pictureControlSetPtr->sequenceControlSetWrapperPtr->objectPtr;
         encodeContextPtr        = (EncodeContext_t*)        sequenceControlSetPtr->encodeContextPtr;
-        tileCnt = pictureControlSetPtr->ParentPcsPtr->tileRowCount * pictureControlSetPtr->ParentPcsPtr->tileColumnCount; 
+        tileCnt = pictureControlSetPtr->ParentPcsPtr->tileRowCount * pictureControlSetPtr->ParentPcsPtr->tileColumnCount;
+
+#ifdef LATENCY_TRACK_ENABLED
+        if (pictureControlSetPtr->pictureNumber < PIC_TRACKING_COUNT) {
+            EB_U64 currentS, currentUs;
+            EbFinishTime(&currentS, &currentUs);
+            EbComputeElapsedTime(startS, startUs, currentS, currentUs,
+                &picStartTime[pictureControlSetPtr->pictureNumber][KERNEL_PACKETIZATION]);
+#ifdef LATENCY_TRACK_DETAILS
+            fprintf(stderr, "KERNEL_PACKETIZATION %ld started\n", pictureControlSetPtr->pictureNumber);
+#endif
+        }
+#endif
+
 #if DEADLOCK_DEBUG
         SVT_LOG("POC %lld PK IN \n", pictureControlSetPtr->pictureNumber);
 #endif
@@ -945,6 +958,20 @@ void* PacketizationKernel(void *inputPtr)
                 encodeContextPtr->fillerBitError = (EB_S64)(queueEntryPtr->fillerBitsFinal - queueEntryPtr->fillerBitsSent);
                 EbReleaseMutex(encodeContextPtr->bufferFillMutex);
             }
+
+#ifdef LATENCY_TRACK_ENABLED
+            if (outputStreamPtr->pts < PIC_TRACKING_COUNT) {
+                EB_U64 currentS, currentUs;
+                EbFinishTime(&currentS, &currentUs);
+                EbComputeElapsedTime(startS, startUs, currentS, currentUs,
+                    &picFinishTime[outputStreamPtr->pts][KERNEL_PACKETIZATION]);
+                ++totalPicCount;
+#ifdef LATENCY_TRACK_DETAILS
+                fprintf(stderr, "KERNEL_PACKETIZATION %ld finished\n", outputStreamPtr->pts);
+#endif
+            }
+#endif
+
             EbPostFullObject(outputStreamWrapperPtr);
             // Reset the Reorder Queue Entry
             queueEntryPtr->pictureNumber    += PACKETIZATION_REORDER_QUEUE_MAX_DEPTH;            
@@ -955,7 +982,7 @@ void* PacketizationKernel(void *inputPtr)
                 (encodeContextPtr->packetizationReorderQueueHeadIndex == PACKETIZATION_REORDER_QUEUE_MAX_DEPTH - 1) ? 0 : encodeContextPtr->packetizationReorderQueueHeadIndex + 1;
             
             queueEntryPtr           = encodeContextPtr->packetizationReorderQueue[encodeContextPtr->packetizationReorderQueueHeadIndex];
- 
+
 
         }
 #if DEADLOCK_DEBUG

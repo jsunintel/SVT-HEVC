@@ -167,6 +167,18 @@ void* PictureManagerKernel(void *inputPtr)
             sequenceControlSetPtr           = (SequenceControlSet_t*) pictureControlSetPtr->sequenceControlSetWrapperPtr->objectPtr;
             encodeContextPtr                = sequenceControlSetPtr->encodeContextPtr; 
 
+#ifdef LATENCY_TRACK_ENABLED
+            if (pictureControlSetPtr->pictureNumber < PIC_TRACKING_COUNT) {
+                EB_U64 currentS, currentUs;
+                EbFinishTime(&currentS, &currentUs);
+                EbComputeElapsedTime(startS, startUs, currentS, currentUs,
+                    &picStartTime[pictureControlSetPtr->pictureNumber][KERNEL_PICTURE_MANAGER]);
+#ifdef LATENCY_TRACK_DETAILS
+                fprintf(stderr, "KERNEL_PICTURE_MANAGER %ld started\n", pictureControlSetPtr->pictureNumber);
+#endif
+            }
+#endif
+
 #if DEADLOCK_DEBUG
             SVT_LOG("POC %lld PM IN \n", pictureControlSetPtr->pictureNumber);
 #endif
@@ -839,7 +851,18 @@ void* PictureManagerKernel(void *inputPtr)
                             1);
                     }
 
-                    
+#ifdef LATENCY_TRACK_ENABLED
+                    if (ChildPictureControlSetPtr->pictureNumber < PIC_TRACKING_COUNT) {
+                        EB_U64 currentS, currentUs;
+                        EbFinishTime(&currentS, &currentUs);
+                        EbComputeElapsedTime(startS, startUs, currentS, currentUs,
+                            &picFinishTime[ChildPictureControlSetPtr->pictureNumber][KERNEL_PICTURE_MANAGER]);
+#ifdef LATENCY_TRACK_DETAILS
+                        fprintf(stderr, "KERNEL_PICTURE_MANAGER %ld finished\n", ChildPictureControlSetPtr->pictureNumber);
+#endif
+                    }
+#endif
+
                     // Get Empty Results Object
                     EbGetEmptyObject(
                         contextPtr->pictureManagerOutputFifoPtr,

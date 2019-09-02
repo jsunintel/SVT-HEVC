@@ -2376,6 +2376,18 @@ void* RateControlKernel(void *inputPtr)
             SVT_LOG("POC %lld RC IN \n", pictureControlSetPtr->pictureNumber);
 #endif
 
+#ifdef LATENCY_TRACK_ENABLED
+            if (pictureControlSetPtr->pictureNumber < PIC_TRACKING_COUNT) {
+                EB_U64 currentS, currentUs;
+                EbFinishTime(&currentS, &currentUs);
+                EbComputeElapsedTime(startS, startUs, currentS, currentUs,
+                    &picStartTime[pictureControlSetPtr->pictureNumber][KERNEL_RATE_CONTROL]);
+#ifdef LATENCY_TRACK_DETAILS
+                fprintf(stderr, "KERNEL_RATE_CONTROL %ld started\n", pictureControlSetPtr->pictureNumber);
+#endif
+            }
+#endif
+
             // High level RC
             if (pictureControlSetPtr->pictureNumber == 0){
 
@@ -2639,6 +2651,18 @@ void* RateControlKernel(void *inputPtr)
                 pictureControlSetPtr->ParentPcsPtr->averageQp += lcuPtr->qp;
             }
             pictureControlSetPtr->ParentPcsPtr->averageQp = pictureControlSetPtr->ParentPcsPtr->averageQp / lcuTotalCount;
+
+#ifdef LATENCY_TRACK_ENABLED
+            if (pictureControlSetPtr->pictureNumber < PIC_TRACKING_COUNT) {
+                EB_U64 currentS, currentUs;
+                EbFinishTime(&currentS, &currentUs);
+                EbComputeElapsedTime(startS, startUs, currentS, currentUs,
+                    &picFinishTime[pictureControlSetPtr->pictureNumber][KERNEL_RATE_CONTROL]);
+#ifdef LATENCY_TRACK_DETAILS
+                fprintf(stderr, "KERNEL_RATE_CONTROL %ld finished\n", pictureControlSetPtr->pictureNumber);
+#endif
+            }
+#endif
 
             // Get Empty Rate Control Results Buffer
             EbGetEmptyObject(

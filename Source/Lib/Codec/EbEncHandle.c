@@ -1820,6 +1820,25 @@ EB_API EB_ERRORTYPE EbInitEncoder(EB_COMPONENTTYPE *h265EncComponent)
 
     EbSetThreadManagementParameters(configPtr);
 
+#ifdef LATENCY_TRACK_ENABLED
+    EB_CREATEMUTEX(EB_HANDLE, motionEstimationStartMutex, sizeof(EB_HANDLE), EB_MUTEX);
+    EB_CREATEMUTEX(EB_HANDLE, motionEstimationFinishMutex, sizeof(EB_HANDLE), EB_MUTEX);
+    EB_CREATEMUTEX(EB_HANDLE, encDecStartMutex, sizeof(EB_HANDLE), EB_MUTEX);
+    EB_CREATEMUTEX(EB_HANDLE, encDecFinishMutex, sizeof(EB_HANDLE), EB_MUTEX);
+    EB_CREATEMUTEX(EB_HANDLE, entropyCodingStartMutex, sizeof(EB_HANDLE), EB_MUTEX);
+    EB_CREATEMUTEX(EB_HANDLE, entropyCodingFinishMutex, sizeof(EB_HANDLE), EB_MUTEX);
+
+    memset(motionEstimationStarted, EB_FALSE, sizeof(motionEstimationStarted));
+    memset(encDecStarted, EB_FALSE, sizeof(encDecStarted));
+    memset(entropyCodingStarted, EB_FALSE, sizeof(entropyCodingStarted));
+
+    memset(picStartTime, 0, sizeof(EB_U64) * PIC_TRACKING_COUNT * KERNEL_TOTAL);
+    memset(picFinishTime, 0, sizeof(EB_U64) * PIC_TRACKING_COUNT * KERNEL_TOTAL);
+
+    EbStartTime(&startS, &startUs);
+    totalPicCount = 0;
+#endif
+
     // Resource Coordination
     EB_CREATETHREAD(EB_HANDLE, encHandlePtr->resourceCoordinationThreadHandle, sizeof(EB_HANDLE), EB_THREAD, ResourceCoordinationKernel, encHandlePtr->resourceCoordinationContextPtr);
 
@@ -1898,6 +1917,42 @@ EB_API EB_ERRORTYPE EbDeinitEncoder(EB_COMPONENTTYPE *h265EncComponent)
     EB_ERRORTYPE return_error = EB_ErrorNone;
     EB_S32              ptrIndex     = 0 ;
     EbMemoryMapEntry*   memoryEntry  = (EbMemoryMapEntry*)EB_NULL;
+
+#ifdef LATENCY_TRACK_ENABLED
+    FILE *logFile = fopen("./latency.csv", "w");
+    if (logFile == NULL) {
+        fprintf(stderr, "Failed to open ./latency.csv: %s!\n", strerror(errno));
+    } else {
+        fprintf(logFile, "POC,"
+            "RESOURCE_COORDINATION Started at,Finished at,Cost time,"
+            "PICTURE_ANALYSIS Started,Finished,Cost time,Wait to start,"
+            "PICTURE_DECISION Started,Finished,Cost time,Wait to start,"
+            "MOTION_ESTIMATION Started,Finished,Cost time,Wait to start,"
+            "INITIAL_RATE_CONTROL Started,Finished,Cost time,Wait to start,"
+            "SOURCE_BASED_OPERATION Started,Finished,Cost time,Wait to start,"
+            "PICTURE_MANAGER Started,Finished,Cost time,Wait to start,"
+            "RATE_CONTROL Started,Finished,Cost time,Wait to start,"
+            "MODE_DECISION_CONFIGURATION Started,Finished,Cost time,Wait to start,"
+            "ENC_DEC Started,Finished,Cost time,Wait to start,"
+            "ENTROPY_CODING Started,Finished,Cost time,Wait to start,"
+            "PACKETIZATION Started,Finished,Cost time,Wait to start,"
+            "\n");
+
+        for  (EB_U64  poc=0; poc<totalPicCount; ++poc) {
+            fprintf(logFile, "%ld,", poc);
+            for (EB_U64 kernel=0; kernel<KERNEL_TOTAL; ++kernel) {
+                fprintf(logFile, "%ld,%ld,%ld,",
+                    picStartTime[poc][kernel], picFinishTime[poc][kernel],
+                    (picFinishTime[poc][kernel]-picStartTime[poc][kernel]));
+                if (kernel > 0)
+                    fprintf(logFile, "%ld,",
+                    picStartTime[poc][kernel] - picFinishTime[poc][kernel-1]);
+            }
+            fprintf(logFile, "\n");
+        }
+        fclose(logFile);
+    }
+#endif
 
     if (encHandlePtr){
         //Jing: Send signal to quit thread
